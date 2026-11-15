@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zakwan Irfan · Network Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a network operations console. Header bar, status tiles, a live skill topology, then projects as interfaces and the career as a traceroute. */
+:root{
+  --bg:#0b1622; --panel:#112233; --line:#1f3a52;
+  --ink:#e4eef6; --muted:#8aa4ba;
+  --accent:#4cc9f0; --amber:#ffb703; --up:#5ad19a; --warn:#f4845f;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;
+  background-image:radial-gradient(circle at 1px 1px, rgba(76,201,240,.07) 1px, transparent 0);background-size:22px 22px}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 56px}
+.mono{font-family:var(--mono)}
+
+/* top bar */
+.bar{position:sticky;top:0;z-index:5;background:rgba(11,22,34,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.bar .wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
+.prompt{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.prompt b{color:var(--up);font-weight:600}
+.prompt i{color:var(--accent);font-style:normal}
+.bar nav{display:flex;gap:14px;margin-left:auto;flex-wrap:wrap}
+.bar nav a{font-family:var(--mono);font-size:12px;color:var(--muted);text-decoration:none;text-transform:uppercase;letter-spacing:.08em}
+.bar nav a:hover{color:var(--accent)}
+.clock{font-family:var(--mono);font-size:12px;color:var(--amber);font-variant-numeric:tabular-nums}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.35fr 1fr;gap:24px;padding-top:40px;align-items:start}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+h1{font-family:var(--mono);font-size:clamp(28px,4.4vw,46px);line-height:1.1;margin:0 0 6px;text-wrap:balance;letter-spacing:-.01em}
+h1 .full{display:block;font-size:.42em;color:var(--muted);font-weight:400;letter-spacing:.02em;margin-top:8px}
+.role{font-size:18px;color:var(--ink);margin:14px 0 12px}
+.summary{color:var(--muted);max-width:62ch;margin:0 0 20px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:12px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;color:var(--ink);background:var(--panel);text-decoration:none;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.chip.primary{background:var(--accent);color:#06202c;border-color:var(--accent);font-weight:600}
+
+.status{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;border-top:3px solid var(--up)}
+.pill{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;color:var(--up);background:rgba(90,209,154,.1);border:1px solid rgba(90,209,154,.35);padding:4px 10px;border-radius:999px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--up);box-shadow:0 0 0 0 rgba(90,209,154,.6);animation:ping 1.8s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(90,209,154,.6)}70%{box-shadow:0 0 0 9px rgba(90,209,154,0)}100%{box-shadow:0 0 0 0 rgba(90,209,154,0)}}
+.status h2{font-family:var(--mono);font-size:15px;margin:14px 0 4px}
+.window{font-family:var(--mono);font-size:22px;color:var(--amber);margin:2px 0 12px;font-variant-numeric:tabular-nums}
+.track{height:10px;border-radius:6px;background:#0a1824;border:1px solid var(--line);position:relative;overflow:hidden}
+.track span{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--accent),var(--up));width:0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-family:var(--mono);font-size:12.5px;margin-top:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-variant-numeric:tabular-nums}
+
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.tile .n{font-family:var(--mono);font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)}
+.tile .n small{font-size:14px;color:var(--muted);font-weight:400}
+.tile .l{font-size:13px;color:var(--muted)}
+
+/* sections */
+section{margin-top:52px}
+.sh{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:18px}
+.sh h2{font-family:var(--mono);font-size:20px;margin:0}
+.sh .cmd{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.sh .cmd::before{content:"# ";color:var(--accent)}
+
+/* topology */
+.topo{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}
+.canvas-box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:380px}
+#net{width:100%;height:100%;display:block;min-height:380px;cursor:pointer}
+.legend{position:absolute;right:12px;top:10px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.detail{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;border-left:3px solid var(--accent)}
+.detail .if{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.detail h3{font-family:var(--mono);font-size:17px;margin:4px 0 12px;color:var(--accent)}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-family:var(--mono);font-size:12px;padding:4px 8px;border-radius:5px;background:#0d2131;border:1px solid var(--line)}
+.nodelist{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
+.nodelist button{font-family:var(--mono);font-size:11.5px;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:4px 8px;cursor:pointer}
+.nodelist button[aria-pressed="true"]{color:#06202c;background:var(--accent);border-color:var(--accent)}
+
+/* projects as interfaces */
+.ifaces{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.iface{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.iface .top{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.state{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.state.up{color:var(--up);border:1px solid rgba(90,209,154,.4)}
+.state.prog{color:var(--amber);border:1px solid rgba(255,183,3,.45)}
+.iface h3{margin:0;font-size:16px;line-height:1.35;text-wrap:balance}
+.iface ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+.iface .stack{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto}
+
+/* traceroute */
+.trace{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.hops{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.hops h3{font-family:var(--mono);font-size:13px;color:var(--muted);margin:0 0 10px;font-weight:400}
+.hop{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 0;border-top:1px dashed var(--line)}
+.hop:first-of-type{border-top:0}
+.hop .no{font-family:var(--mono);color:var(--accent);font-size:13px;padding-top:2px}
+.hop .t{font-weight:600}
+.hop .s{color:var(--muted);font-size:14px}
+.hop .d{font-family:var(--mono);font-size:12px;color:var(--amber);font-variant-numeric:tabular-nums}
+.hop .note{font-size:13.5px;color:var(--muted);margin-top:2px}
+
+/* lower grid */
+.lower{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.card h3{font-family:var(--mono);font-size:14px;margin:0 0 12px;color:var(--accent);font-weight:600}
+.cert{padding:8px 0;border-top:1px dashed var(--line);font-size:14px}
+.cert:first-of-type{border-top:0}
+.cert span{display:block;color:var(--muted);font-size:13px}
+.lang{display:grid;grid-template-columns:90px 1fr auto;align-items:center;gap:12px;padding:7px 0}
+.bars{display:flex;gap:4px;align-items:flex-end;height:18px}
+.bars i{width:7px;border-radius:2px;background:#21384c}
+.bars i.on{background:var(--accent)}
+.lang .lv{font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+/* contact */
+.contact{background:linear-gradient(135deg,#12304a,#0f2233);border:1px solid var(--line);border-radius:12px;padding:24px;display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between}
+.contact h2{font-family:var(--mono);margin:0 0 6px;font-size:22px}
+.contact p{margin:0;color:var(--muted)}
+.copied{font-family:var(--mono);font-size:12px;color:var(--up);min-height:1em}
+footer{margin-top:28px;font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center}
+
+@media (max-width:900px){
+  .hero,.topo,.trace,.lower{grid-template-columns:1fr}
+  .tiles{grid-template-columns:repeat(2,1fr)}
+  .ifaces{grid-template-columns:1fr}
+  .bar nav{display:none}
+}
+@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <div class="prompt"><b>zakwan</b>@<i>uitm-jasin</i>:~$ show profile</div>
+    <nav aria-label="Sections">
+      <a href="#skills">Skills</a><a href="#projects">Projects</a><a href="#journey">Journey</a><a href="#contact">Contact</a>
+    </nav>
+    <div class="clock" id="clock" aria-label="Malaysia time">MYT --:--:--</div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <div>
+      <p class="eyebrow">Computer Networks · UiTM Kampus Jasin</p>
+      <h1>Zakwan Irfan<span class="full">Muhammad Zakwan ‘Irfan bin Mohd Zamry</span></h1>
+      <p class="role">Final-year B.Sc. (Hons.) Computer Networks student, building networks that configure themselves and watch their own traffic.</p>
+      <p class="summary">I design, automate and secure networks with Cisco, GNS3 and Python. I bring six months of hands-on IT support from a previous internship, a CGPA of 3.81, and experience leading student and community programmes. I’m looking for a 14-week industrial training placement in network operations.</p>
+      <div class="chips">
+        <a class="chip primary" href="#contact">Get in touch</a>
+        <a class="chip" href="https://www.linkedin.com/in/zakwanirfan">LinkedIn ↗</a>
+        <span class="chip">Setiu, Terengganu</span>
+      </div>
+    </div>
+
+    <aside class="status" aria-label="Internship availability">
+      <span class="pill"><span class="dot"></span>STATUS: OPEN TO INTERNSHIP</span>
+      <h2>Industrial training window</h2>
+      <div class="window">15 Mar → 18 Jun 2027</div>
+      <div class="track" aria-hidden="true"><span id="trackfill"></span></div>
+      <dl class="kv">
+        <dt>duration</dt><dd>14 weeks</dd>
+        <dt>starts in</dt><dd id="countdown">— days</dd>
+        <dt>focus</dt><dd>Network engineering · NOC · Security</dd>
+        <dt>offer needed by</dt><dd>5 Mar 2027</dd>
+      </dl>
+    </aside>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="n">3.81 <small>/ 4.00</small></div><div class="l">Degree CGPA, JPA PIDN scholar</div></div>
+    <div class="tile"><div class="n">6 <small>months</small></div><div class="l">IT support internship, Alpha Tech</div></div>
+    <div class="tile"><div class="n">4</div><div class="l">Network &amp; security projects</div></div>
+    <div class="tile"><div class="n">6</div><div class="l">Leadership &amp; committee roles</div></div>
+  </div>
+
+  <section id="skills">
+    <div class="sh"><h2>Skill topology</h2><span class="cmd">show cdp neighbors · click a node</span></div>
+    <div class="topo">
+      <div class="canvas-box">
+        <canvas id="net" aria-label="Network diagram of skill areas connected to a core router"></canvas>
+        <div class="legend">● core &nbsp; ○ skill area &nbsp; · packets in flight</div>
+      </div>
+      <div class="detail" aria-live="polite">
+        <div class="if" id="d-if">GigabitEthernet0/1 · up</div>
+        <h3 id="d-title">Networking &amp; Protocols</h3>
+        <div class="tags" id="d-tags"></div>
+        <div class="nodelist" id="nodelist" role="group" aria-label="Choose a skill area"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="projects">
+    <div class="sh"><h2>Projects</h2><span class="cmd">show interfaces status</span></div>
+    <div class="ifaces">
+      <article class="iface">
+        <div class="top"><span>Gi0/1 · Final Year Project</span><span class="state prog">in progress · Jan 2027</span></div>
+        <h3>An Automated Network Intrusion Detection and Alerting System</h3>
+        <ul>
+          <li>Developing a machine learning-based IDS using Python and a Random Forest model.</li>
+          <li>Building real-time monitoring and alerts with InfluxDB and Grafana.</li>
+        </ul>
+        <div class="stack"><span class="tag">Python</span><span class="tag">Random Forest</span><span class="tag">InfluxDB</span><span class="tag">Grafana</span><span class="tag">GNS3</span></div>
+      </article>
+      <article class="iface">
+        <div class="top"><span>Gi0/2 · WAN Technologies</span><span class="state up">up · 2026</span></div>
+        <h3>Network Automation of a Multi-Area OSPF, VLAN and DHCP Network</h3>
+        <ul>
+          <li>Designed a GNS3 enterprise topology with three routers, a backbone switch and three VLANs.</li>
+          <li>Automated Multi-Area OSPFv2, VLAN and DHCP configuration with Python and Netmiko over SSH.</li>
+        </ul>
+        <div class="stack"><span class="tag">OSPFv2</span><span class="tag">Netmiko</span><span class="tag">SSH</span><span class="tag">VLAN</span><span class="tag">DHCP</span></div>
+      </article>
+      <article class="iface">
+        <div class="top"><span>Gi0/3 · Network Design</span><span class="state up">up · 2026</span></div>
+        <h3>Network Design Proposal for the New FSKM Building</h3>
+        <ul>
+          <li>Designed a network for a three-storey faculty building using VLSM, VLANs and OSPF.</li>
+          <li>Proposed Wi-Fi 6E/7 with WPA3-Enterprise, plus NGFW, IPS, ACLs and VPN.</li>
+          <li>Prepared an RM10 million Bill of Materials and presented it at an academic exhibition.</li>
+        </ul>
+        <div class="stack"><span class="tag">VLSM</span><span class="tag">Wi-Fi 6E/7</span><span class="tag">WPA3</span><span class="tag">NGFW</span></div>
+      </article>
+      <article class="iface">
+        <div class="top"><span>Gi0/4 · Digital Forensics</span><span class="state up">up · 2026</span></div>
+        <h3>Incident Response Case Study: Insider Data Exfiltration</h3>
+        <ul>
+          <li>Investigated a simulated insider data exfiltration incident as a team.</li>
+          <li>Verified evidence with SHA-256 hashing and prepared chain-of-custody documentation.</li>
+        </ul>
+        <div class="stack"><span class="tag">FTK Imager</span><span class="tag">Autopsy</span><span class="tag">SHA-256</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section id="journey">
+    <div class="sh"><h2>Journey</h2><span class="cmd">traceroute zakwan.career</span></div>
+    <div class="trace">
+      <div class="hops">
+        <h3>Experience</h3>
+        <div class="hop"><div class="no">1</div><div><div class="t">Production Runner (Part-time)</div><div class="s">NR Cafe</div><div class="d">Sep 2026</div></div></div>
+        <div class="hop"><div class="no">2</div><div><div class="t">IT Support Technician (Internship)</div><div class="s">Alpha Tech Computer Sdn. Bhd.</div><div class="d">Sep 2024 – Feb 2025</div><div class="note">Wired and set up devices for hotel buildings in Kuala Terengganu, fixed Ethernet switch cabling at a client office, and built the company’s static website.</div></div></div>
+        <div class="hop"><div class="no">3</div><div><div class="t">Street Vendor: Service Crew &amp; Content Assistant</div><div class="s">One’s Cendol</div><div class="d">Mar 2024 – May 2024</div></div></div>
+        <div class="hop"><div class="no">4</div><div><div class="t">Temporary Pump Operator</div><div class="s">Petronas Gas Station</div><div class="d">Jun 2022 – Jul 2022</div><div class="note">Kept daily pump meter reports and served around 100 customers a day.</div></div></div>
+      </div>
+      <div class="hops">
+        <h3>Education</h3>
+        <div class="hop"><div class="no">1</div><div><div class="t">B.Sc. (Hons.) Computer Networks</div><div class="s">UiTM Kampus Jasin · CGPA 3.81</div><div class="d">Mar 2025 – present</div><div class="note">Scholarship: JPA Program Ijazah Dalam Negara (PIDN)</div></div></div>
+        <div class="hop"><div class="no">2</div><div><div class="t">Diploma in Computer Science</div><div class="s">UiTM Kampus Kuala Terengganu · CGPA 3.52</div><div class="d">Oct 2022 – Feb 2025</div></div></div>
+        <div class="hop"><div class="no">3</div><div><div class="t">SPM, Pure Science</div><div class="s">SM Imtiaz Yayasan Terengganu, Setiu</div><div class="d">2017 – 2021</div><div class="note">5A 3B, plus Sijil Tahfiz Malaysia (STM)</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="leadership">
+    <div class="sh"><h2>Leadership</h2><span class="cmd">show spanning-tree root</span></div>
+    <div class="hops" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 28px">
+      <div class="hop"><div class="no">★</div><div><div class="t">Onsite Leader</div><div class="s">SULAM Programme, UiTM Kampus Jasin</div><div class="d">Oct 2026 – present</div><div class="note">Coordinating station facilitators for the “Project Netizen Hero!” community programme.</div></div></div>
+      <div class="hop"><div class="no">★</div><div><div class="t">Admin Assistant &amp; Technical Support</div><div class="s">ICTFF8 Capture The Flag, UiTM Kampus Jasin</div><div class="d">Jan 2026</div></div></div>
+      <div class="hop"><div class="no">★</div><div><div class="t">Special Duties Committee Member</div><div class="s">Networking Society Club, UiTM Kampus Jasin</div><div class="d">Aug 2025 – Jan 2026</div></div></div>
+      <div class="hop"><div class="no">★</div><div><div class="t">Student Representative</div><div class="s">MBOT Accreditation Interview</div><div class="d">May 2024</div><div class="note">Represented students in the UiTM accreditation compliance audit.</div></div></div>
+      <div class="hop"><div class="no">★</div><div><div class="t">President</div><div class="s">Res-Q Association Club, UiTM Kampus Kuala Terengganu</div><div class="d">Jan 2023 – Jun 2023</div><div class="note">Led voluntary assistance for UiTM students and the local community.</div></div></div>
+      <div class="hop"><div class="no">★</div><div><div class="t">Student Representative</div><div class="s">Malaysian Future Leader School (MFLS)</div><div class="d">2020</div><div class="note">National leadership certificate from the Ministry of Youth and Sports.</div></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="lower">
+      <div class="card">
+        <h3>Certifications &amp; training</h3>
+        <div class="cert">Cisco Networking Academy, CCNA courses<span>Introduction to Networks · Switching, Routing and Wireless Essentials · Enterprise Networking, Security and Automation</span></div>
+        <div class="cert">Cisco Introduction to IoT<span>2026</span></div>
+        <div class="cert">TryHackMe: Cybersecurity and Digital Forensics<span>Windows investigations, disk analysis, Autopsy and KAPE</span></div>
+      </div>
+      <div class="card">
+        <h3>Languages · signal strength</h3>
+        <div class="lang"><span>Malay</span><span class="bars" aria-hidden="true"><i class="on" style="height:5px"></i><i class="on" style="height:9px"></i><i class="on" style="height:13px"></i><i class="on" style="height:18px"></i></span><span class="lv">Native</span></div>
+        <div class="lang"><span>English</span><span class="bars" aria-hidden="true"><i class="on" style="height:5px"></i><i class="on" style="height:9px"></i><i class="on" style="height:13px"></i><i style="height:18px"></i></span><span class="lv">Full professional</span></div>
+        <div class="lang"><span>Mandarin</span><span class="bars" aria-hidden="true"><i class="on" style="height:5px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:18px"></i></span><span class="lv">Elementary</span></div>
+        <div class="lang"><span>Arabic</span><span class="bars" aria-hidden="true"><i class="on" style="height:5px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:18px"></i></span><span class="lv">Elementary</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact">
+    <div class="contact">
+      <div>
+        <h2>Have a placement from March 2027?</h2>
+        <p>I’d be glad to hear from you. Email me or connect on LinkedIn.</p>
+        <p class="mono" style="color:var(--ink);margin-top:10px">z.irfancs@gmail.com</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start">
+        <div class="chips">
+          <button class="chip primary" id="copy" type="button">Copy email</button>
+          <a class="chip" href="mailto:z.irfancs@gmail.com">Send email</a>
+          <a class="chip" href="https://www.linkedin.com/in/zakwanirfan">LinkedIn ↗</a>
+        </div>
+        <div class="copied" id="copied" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>end of show profile · 0 errors, 0 collisions</footer>
+</main>
+
+<script>
+(function(){
+  // clock + countdown (Malaysia time)
+  var clock=document.getElementById('clock');
+  function tick(){
+    try{
+      var t=new Date().toLocaleTimeString('en-GB',{timeZone:'Asia/Kuala_Lumpur',hour12:false});
+      clock.textContent='MYT '+t;
+    }catch(e){clock.textContent='';}
+  }
+  tick(); setInterval(tick,1000);
+  var start=new Date('2027-03-15T00:00:00+08:00'), end=new Date('2027-06-18T23:59:59+08:00'), now=new Date();
+  var days=Math.ceil((start-now)/864e5);
+  var cd=document.getElementById('countdown');
+  if(days>0){cd.textContent=days+' days';}
+  else if(now<end){cd.textContent='in progress';}
+  else{cd.textContent='completed';}
+  var pct=now<start?0:Math.min(100,(now-start)/(end-start)*100);
+  document.getElementById('trackfill').style.width=Math.max(pct,2)+'%';
+
+  // copy email
+  document.getElementById('copy').addEventListener('click',function(){
+    var out=document.getElementById('copied');
+    try{
+      navigator.clipboard.writeText('z.irfancs@gmail.com').then(function(){out.textContent='Copied to clipboard.';},function(){out.textContent='Could not copy. Select the address above instead.';});
+    }catch(e){out.textContent='Could not copy. Select the address above instead.';}
+  });
+
+  // skill topology
+  var nodes=[
+    {id:'core',label:'ZAKWAN',core:true},
+    {id:'net',label:'Routing',title:'Networking & Protocols',iface:'Gi0/1',tags:['TCP/IP','LAN/WAN','Routing & Switching','OSPF','BGP','EIGRP','VLANs','VLSM','DHCP','DNS']},
+    {id:'auto',label:'Automation',title:'Configuration & Automation',iface:'Gi0/2',tags:['Cisco Device Configuration','Python','Netmiko','SSH','Network Automation']},
+    {id:'sec',label:'Security',title:'Network Security',iface:'Gi0/3',tags:['ACLs','VPN','Network Segmentation','Intrusion Detection (IDS)']},
+    {id:'tools',label:'Tools',title:'Network Tools & Simulation',iface:'Gi0/4',tags:['Cisco Packet Tracer','GNS3','Wireshark','iPerf3','Docker']},
+    {id:'os',label:'OS & Code',title:'Operating Systems & Programming',iface:'Gi0/5',tags:['Linux','Windows Server','Windows 10/11','Python','C++','Java','C','PHP','HTML','Visual Basic']},
+    {id:'dfir',label:'Forensics',title:'Digital Forensics',iface:'Gi0/6',tags:['FTK Imager','HxD','Autopsy','OSINT','KAPE']},
+    {id:'sw',label:'Software',title:'Database & Software Tools',iface:'Gi0/7',tags:['MySQL','Microsoft Access','VS Code','Apache NetBeans','Microsoft Excel','Photoshop','Canva']}
+  ];
+  var sel='net';
+  var dIf=document.getElementById('d-if'),dT=document.getElementById('d-title'),dTags=document.getElementById('d-tags'),list=document.getElementById('nodelist');
+  nodes.slice(1).forEach(function(n){
+    var b=document.createElement('button');b.type='button';b.textContent=n.label;b.id='btn-'+n.id;
+    b.addEventListener('click',function(){select(n.id);});list.appendChild(b);
+  });
+  function select(id){
+    sel=id;var n=nodes.find(function(x){return x.id===id;});
+    dIf.textContent=n.iface+' · up · '+n.tags.length+' items';
+    dT.textContent=n.title;
+    dTags.innerHTML='';n.tags.forEach(function(t){var s=document.createElement('span');s.className='tag';s.textContent=t;dTags.appendChild(s);});
+    nodes.slice(1).forEach(function(x){document.getElementById('btn-'+x.id).setAttribute('aria-pressed',x.id===id?'true':'false');});
+    draw();
+  }
+
+  var cv=document.getElementById('net'),ctx=cv.getContext('2d'),W=0,H=0,dpr=1;
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var packets=[];
+  function layout(){
+    var r=cv.getBoundingClientRect();dpr=window.devicePixelRatio||1;W=r.width;H=r.height;
+    cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+    var cx=W/2,cy=H/2,R=Math.min(W,H)*0.33,outer=nodes.slice(1);
+    nodes[0].x=cx;nodes[0].y=cy;
+    outer.forEach(function(n,i){var a=-Math.PI/2+i*2*Math.PI/outer.length;n.x=cx+Math.cos(a)*R*1.15;n.y=cy+Math.sin(a)*R;});
+  }
+  var css=getComputedStyle(document.documentElement);
+  var C={accent:css.getPropertyValue('--accent').trim(),amber:css.getPropertyValue('--amber').trim(),line:'#2a4a66',ink:css.getPropertyValue('--ink').trim(),muted:css.getPropertyValue('--muted').trim(),panel:css.getPropertyValue('--panel').trim(),up:css.getPropertyValue('--up').trim()};
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var core=nodes[0];
+    nodes.slice(1).forEach(function(n){
+      ctx.beginPath();ctx.moveTo(core.x,core.y);ctx.lineTo(n.x,n.y);
+      ctx.strokeStyle=n.id===sel?C.accent:C.line;ctx.lineWidth=n.id===sel?2.2:1.2;ctx.setLineDash(n.id===sel?[]:[4,5]);ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    packets.forEach(function(p){
+      var n=nodes.find(function(x){return x.id===p.to;});
+      var t=p.dir>0?p.t:1-p.t;var x=core.x+(n.x-core.x)*t,y=core.y+(n.y-core.y)*t;
+      ctx.beginPath();ctx.arc(x,y,2.6,0,Math.PI*2);ctx.fillStyle=p.dir>0?C.accent:C.amber;ctx.fill();
+    });
+    nodes.slice(1).forEach(function(n){
+      var on=n.id===sel;
+      ctx.beginPath();ctx.arc(n.x,n.y,on?24:20,0,Math.PI*2);ctx.fillStyle=C.panel;ctx.fill();
+      ctx.lineWidth=on?2.5:1.5;ctx.strokeStyle=on?C.accent:C.muted;ctx.stroke();
+      // tiny switch glyph
+      ctx.fillStyle=on?C.accent:C.muted;for(var k=-1;k<=1;k++){ctx.fillRect(n.x-9+k*0+0,n.y-4+k*4,18,2);}
+      ctx.font='600 12px "JetBrains Mono", monospace';ctx.textAlign='center';ctx.fillStyle=on?C.ink:C.muted;
+      ctx.fillText(n.label,n.x,n.y+(n.y<core.y?-32:42));
+    });
+    ctx.beginPath();ctx.arc(core.x,core.y,34,0,Math.PI*2);ctx.fillStyle='#0d2a3b';ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle=C.up;ctx.stroke();
+    ctx.font='700 12px "JetBrains Mono", monospace';ctx.textAlign='center';ctx.fillStyle=C.ink;ctx.fillText('ZAKWAN',core.x,core.y-2);
+    ctx.font='400 10px "JetBrains Mono", monospace';ctx.fillStyle=C.up;ctx.fillText('core-R1',core.x,core.y+13);
+  }
+  function step(){
+    if(Math.random()<0.08){var o=nodes.slice(1);packets.push({to:o[Math.floor(Math.random()*o.length)].id,t:0,dir:Math.random()<.5?1:-1});}
+    if(Math.random()<0.05){packets.push({to:sel,t:0,dir:1});}
+    packets.forEach(function(p){p.t+=0.012;});packets=packets.filter(function(p){return p.t<1;});
+    draw();requestAnimationFrame(step);
+  }
+  cv.addEventListener('click',function(e){
+    var r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+    nodes.slice(1).forEach(function(n){if(Math.hypot(n.x-x,n.y-y)<34)select(n.id);});
+  });
+  window.addEventListener('resize',function(){layout();draw();});
+  layout();select('net');
+  if(document.fonts&&document.fonts.ready){document.fonts.ready.then(draw);}
+  if(!reduce)requestAnimationFrame(step);
+})();
+</script>
+</body>
+</html>
